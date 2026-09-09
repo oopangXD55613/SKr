@@ -1,0 +1,1973 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบจองสถานที่ โรงเรียนสกลราชวิทยานุกุล</title>
+  <!-- Google Fonts: Prompt for modern Thai institutional typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Prompt', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#fef2f2',
+              100: '#fee2e2',
+              200: '#fecaca',
+              600: '#dc2626',
+              700: '#b91c1c',
+              800: '#991b1b',
+              900: '#7f1d1d',
+              950: '#450a0a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React 18 & Babel Standalone -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Supabase JS Client via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      font-family: 'Prompt', sans-serif;
+      background-color: #ffffff;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-white text-slate-800 antialiased min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useCallback } = React;
+
+    // --- SUPABASE CONFIGURATION ---
+    const SUPABASE_URL = 'https://cperemcdomqcwvvolqaz.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZXJlbWNkb21xY3d2dm9scWF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5NTI0NDAsImV4cCI6MjEwNDUyODQ0MH0.NfhxJnmoKaOmtXkf33TOG5IFzFOxIhAbYT2gcggqAMY';
+    const supabaseClient = (typeof window !== 'undefined' && window.supabase) 
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
+
+    // รูปภาพโลโก้โรงเรียน
+    const SCHOOL_LOGO_SRC = './logo.png';
+
+    // รายชื่อเดือนภาษาไทย
+    const THAI_MONTHS = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+
+    // ข้อมูลสำรองเริ่มต้น (Fallback หาก Supabase ยังไม่ได้รันตาราง)
+    const DEFAULT_PROFILES = [
+      {
+        id: '44444444-4444-4444-4444-444444444444',
+        citizenId: '1479900123456',
+        password: '01/01/2525',
+        name: 'นายวิโรจน์ อาคารชัย',
+        role: 'admin',
+        department: 'งานบริหารอาคารสถานที่และสภาพแวดล้อม',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+        phone: '042-711234 ต่อ 105'
+      },
+      {
+        id: '11111111-1111-1111-1111-111111111111',
+        citizenId: '1479900234567',
+        password: '15/08/2530',
+        name: 'ครูศิริพร ใจดี',
+        role: 'teacher',
+        department: 'กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+        phone: '081-234-5678'
+      },
+      {
+        id: '22222222-2222-2222-2222-222222222222',
+        citizenId: '1479900345678',
+        password: '20/04/2533',
+        name: 'ครูธนากร กิจการ',
+        role: 'teacher',
+        department: 'กลุ่มสาระการเรียนรู้ภาษาไทย',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+        phone: '082-345-6789'
+      },
+      {
+        id: '33333333-3333-3333-3333-333333333333',
+        citizenId: '1479900456789',
+        password: '05/12/2528',
+        name: 'ครูประสิทธิ์ วงศ์วิวัฒน์',
+        role: 'teacher',
+        department: 'กลุ่มสาระการเรียนรู้คณิตศาสตร์',
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+        phone: '083-456-7890'
+      }
+    ];
+
+    const DEFAULT_VENUES = [
+      {
+        id: 1,
+        name: 'หอประชุมรวมใจ 100 ปี สกลราชฯ',
+        code: 'AUD-100',
+        building: 'อาคาร 9 (หอประชุมเฉลิมพระเกียรติ)',
+        capacity: 1200,
+        description: 'หอประชุมใหญ่ปรับอากาศ พร้อมเวทีขนาดใหญ่ ระบบไฟ แสง สี เสียง และจอภาพ 4K',
+        status: 'available',
+        isActive: true
+      },
+      {
+        id: 2,
+        name: 'ห้องประชุมทองกวาว',
+        code: 'CONF-TG',
+        building: 'อาคาร 1 ชั้น 2',
+        capacity: 60,
+        description: 'ห้องประชุมบอร์ดรูม โต๊ะประชุมรูปตัว U พร้อมไมค์ประจำที่นั่งและระบบ Video Conference',
+        status: 'available',
+        isActive: true
+      },
+      {
+        id: 3,
+        name: 'ลานกิจกรรมโดม 70 ปี สกลราชฯ',
+        code: 'DOME-70',
+        building: 'ลานอเนกประสงค์กลางแจ้งมีหลังคา',
+        capacity: 2500,
+        description: 'โดมกีฬาและกิจกรรมอเนกประสงค์ในร่ม มีพัดลมไอน้ำ อัฒจันทร์รอบทิศทาง',
+        status: 'available',
+        isActive: true
+      },
+      {
+        id: 4,
+        name: 'ห้อง Smart Classroom 521',
+        code: 'SC-521',
+        building: 'อาคาร 5 ชั้น 2',
+        capacity: 45,
+        description: 'ห้องเรียนอัจฉริยะ โต๊ะเก้าอี้ปรับเปลี่ยนรูปแบบได้ พร้อม Interactive Display',
+        status: 'available',
+        isActive: true
+      }
+    ];
+
+    function isTimeOverlapping(startA, endA, startB, endB) {
+      return !(endA <= startB || startA >= endB);
+    }
+
+    // =========================================================================
+    // MAIN REACT APPLICATION
+    // =========================================================================
+    function FacilityBookingApp() {
+      // Current logged in user (null = แสดงหน้า Login)
+      const [currentUser, setCurrentUser] = useState(() => {
+        const saved = localStorage.getItem('sakonraj_logged_user');
+        return saved ? JSON.parse(saved) : null;
+      });
+
+      // Login form states
+      const [loginCitizenId, setLoginCitizenId] = useState('');
+      const [loginPassword, setLoginPassword] = useState('');
+      const [loginError, setLoginError] = useState('');
+      const [loginLoading, setLoginLoading] = useState(false);
+
+      // System data states
+      const [venues, setVenues] = useState(DEFAULT_VENUES);
+      const [bookings, setBookings] = useState([]);
+      const [profiles, setProfiles] = useState(DEFAULT_PROFILES);
+      const [systemNotifications, setSystemNotifications] = useState([]);
+      const [actionMessage, setActionMessage] = useState(null);
+
+      // Calendar Navigation State
+      const [currentYear, setCurrentYear] = useState(2026); // ค.ศ.
+      const [currentMonth, setCurrentMonth] = useState(8); // 8 = กันยายน (0-indexed)
+      const [selectedDate, setSelectedDate] = useState('2026-09-12');
+
+      // Modals
+      const [isQuickBookingOpen, setIsQuickBookingOpen] = useState(false);
+      const [isAdminDayModalOpen, setIsAdminDayModalOpen] = useState(false);
+      const [isTeacherNotifOpen, setIsTeacherNotifOpen] = useState(false);
+      const [isVenueMgmtOpen, setIsVenueMgmtOpen] = useState(false);
+      const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false);
+      const [rejectingBooking, setRejectingBooking] = useState(null);
+      const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+
+      // New Booking Form State
+      const [newVenueId, setNewVenueId] = useState(1);
+      const [newDate, setNewDate] = useState('2026-09-16');
+      const [newStartTime, setNewStartTime] = useState('09:00');
+      const [newEndTime, setNewEndTime] = useState('12:00');
+      const [newPurpose, setNewPurpose] = useState('');
+      const [newAttendees, setNewAttendees] = useState(50);
+      const [bookingConflictWarning, setBookingConflictWarning] = useState(null);
+
+      // New Venue Form State
+      const [newVenueName, setNewVenueName] = useState('');
+      const [newVenueCode, setNewVenueCode] = useState('');
+      const [newVenueBuilding, setNewVenueBuilding] = useState('');
+      const [newVenueCapacity, setNewVenueCapacity] = useState(50);
+      const [newVenueDesc, setNewVenueDesc] = useState('');
+
+      // New User / Teacher Form State
+      const [newUserCitizenId, setNewUserCitizenId] = useState('');
+      const [newUserPassword, setNewUserPassword] = useState('');
+      const [newUserName, setNewUserName] = useState('');
+      const [newUserRole, setNewUserRole] = useState('teacher');
+      const [newUserDept, setNewUserDept] = useState('');
+      const [newUserAvatar, setNewUserAvatar] = useState('');
+
+      // =========================================================================
+      // SUPABASE DATA FETCHING & REALTIME
+      // =========================================================================
+      const loadAllData = useCallback(async () => {
+        if (!supabaseClient) return;
+
+        try {
+          // 1. โหลดข้อมูลผู้ใช้ Profiles
+          const { data: pData } = await supabaseClient
+            .from('profiles')
+            .select('*')
+            .order('created_at', { ascending: true });
+
+          if (pData && pData.length > 0) {
+            setProfiles(pData.map(p => ({
+              id: p.id,
+              citizenId: p.citizen_id,
+              password: p.password,
+              name: p.full_name,
+              role: p.role,
+              department: p.department || 'กลุ่มสาระการเรียนรู้',
+              avatar: p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+              phone: p.phone
+            })));
+          }
+
+          // 2. โหลดข้อมูลสถานที่ Venues
+          const { data: vData } = await supabaseClient
+            .from('venues')
+            .select('*')
+            .order('id', { ascending: true });
+
+          if (vData && vData.length > 0) {
+            setVenues(vData.map(v => ({
+              id: v.id,
+              name: v.name,
+              code: v.code || '',
+              building: v.building || '',
+              capacity: v.capacity || 0,
+              description: v.description || '',
+              status: v.status || 'available',
+              isActive: v.is_active !== false
+            })));
+          }
+
+          // 3. โหลดข้อมูลการจอง Bookings
+          const { data: bData } = await supabaseClient
+            .from('bookings')
+            .select(`
+              *,
+              profiles:user_id (id, full_name, department),
+              reviewer:reviewed_by (full_name),
+              venues:venue_id (id, name)
+            `)
+            .order('booking_date', { ascending: true })
+            .order('start_time', { ascending: true });
+
+          if (bData) {
+            const mapped = bData.map(b => ({
+              id: b.id,
+              userId: b.user_id,
+              userName: b.profiles?.full_name || 'ครูผู้สอน',
+              userDepartment: b.profiles?.department || 'โรงเรียนสกลราชวิทยานุกุล',
+              venueId: b.venue_id,
+              venueName: b.venues?.name || 'สถานที่โรงเรียน',
+              date: b.booking_date,
+              startTime: b.start_time ? b.start_time.substring(0, 5) : '08:00',
+              endTime: b.end_time ? b.end_time.substring(0, 5) : '10:00',
+              purpose: b.purpose,
+              attendeesCount: b.attendees_count || 1,
+              status: b.status,
+              createdAt: b.created_at ? b.created_at.substring(0, 16).replace('T', ' ') : '',
+              rejectionReason: b.rejection_reason,
+              respondedByAdminName: b.reviewer?.full_name,
+              respondedAt: b.updated_at ? b.updated_at.substring(0, 16).replace('T', ' ') : '',
+              hasBeenNotifiedToTeacher: b.is_read
+            }));
+            setBookings(mapped);
+          }
+
+          // 4. โหลดการแจ้งเตือนระบบ System Notifications
+          const { data: nData } = await supabaseClient
+            .from('system_notifications')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (nData) {
+            setSystemNotifications(nData);
+          }
+        } catch (err) {
+          console.error('Error loading data from Supabase:', err);
+        }
+      }, []);
+
+      useEffect(() => {
+        loadAllData();
+
+        if (supabaseClient) {
+          const channel = supabaseClient
+            .channel('prod-realtime-sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => loadAllData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'venues' }, () => loadAllData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => loadAllData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'system_notifications' }, () => loadAllData())
+            .subscribe();
+
+          return () => {
+            supabaseClient.removeChannel(channel);
+          };
+        }
+      }, [loadAllData]);
+
+      // Track if login popup notification has already been triggered
+      const [hasTriggeredLoginPopup, setHasTriggeredLoginPopup] = useState(false);
+
+      // Teacher Notification Auto-popup on Login (Only popup once when unacknowledged items exist)
+      useEffect(() => {
+        if (currentUser && currentUser.role === 'teacher' && !hasTriggeredLoginPopup) {
+          const unacknowledged = bookings.filter(
+            b => b.userId === currentUser.id && 
+                 (b.status === 'rejected' || b.status === 'approved') && 
+                 b.hasBeenNotifiedToTeacher === false
+          );
+          if (unacknowledged.length > 0) {
+            setIsTeacherNotifOpen(true);
+          }
+          setHasTriggeredLoginPopup(true);
+        }
+      }, [currentUser, bookings, hasTriggeredLoginPopup]);
+
+      // Conflict warning preview while filling quick booking form
+      useEffect(() => {
+        if (!newVenueId || !newDate || !newStartTime || !newEndTime) {
+          setBookingConflictWarning(null);
+          return;
+        }
+        const conflict = bookings.find(
+          b => b.date === newDate &&
+               Number(b.venueId) === Number(newVenueId) &&
+               b.status !== 'rejected' &&
+               isTimeOverlapping(newStartTime, newEndTime, b.startTime, b.endTime)
+        );
+        if (conflict) {
+          setBookingConflictWarning(
+            `⚠️ คำเตือน: มีรายการของ "${conflict.userName}" (${conflict.startTime} - ${conflict.endTime} น.) ในช่วงเวลานี้แล้ว คำขอนี้จะเข้าสู่การพิจารณาความทับซ้อน`
+          );
+        } else {
+          setBookingConflictWarning(null);
+        }
+      }, [newVenueId, newDate, newStartTime, newEndTime, bookings]);
+
+      // Conflict Detection Engine
+      const conflictGroups = useMemo(() => {
+        const groups = [];
+        const activeBookings = bookings.filter(b => b.status === 'pending');
+        const byDateVenue = new Map();
+
+        activeBookings.forEach(b => {
+          const key = `${b.date}_${b.venueId}`;
+          if (!byDateVenue.has(key)) byDateVenue.set(key, []);
+          byDateVenue.get(key).push(b);
+        });
+
+        byDateVenue.forEach((items) => {
+          if (items.length > 1) {
+            const conflicting = new Set();
+            for (let i = 0; i < items.length; i++) {
+              for (let j = i + 1; j < items.length; j++) {
+                if (isTimeOverlapping(items[i].startTime, items[i].endTime, items[j].startTime, items[j].endTime)) {
+                  conflicting.add(items[i]);
+                  conflicting.add(items[j]);
+                }
+              }
+            }
+
+            if (conflicting.size > 1) {
+              const sorted = Array.from(conflicting).sort((a, b) => a.startTime.localeCompare(b.startTime));
+              const first = sorted[0];
+              const minStart = sorted[0].startTime;
+              const maxEnd = sorted.reduce((m, c) => c.endTime > m ? c.endTime : m, sorted[0].endTime);
+              groups.push({
+                venueId: first.venueId,
+                venueName: first.venueName,
+                date: first.date,
+                timeRange: `${minStart} - ${maxEnd} น.`,
+                bookings: sorted
+              });
+            }
+          }
+        });
+        return groups;
+      }, [bookings]);
+
+      const conflictDates = useMemo(() => new Set(conflictGroups.map(g => g.date)), [conflictGroups]);
+
+      // Teacher's own notifications
+      const teacherNotifications = useMemo(() => {
+        if (!currentUser || currentUser.role !== 'teacher') return [];
+        return bookings.filter(b => b.userId === currentUser.id && (b.status === 'approved' || b.status === 'rejected'));
+      }, [bookings, currentUser]);
+
+      const unreadCount = useMemo(() => {
+        if (!currentUser || currentUser.role !== 'teacher') return 0;
+        return bookings.filter(b => b.userId === currentUser.id && b.hasBeenNotifiedToTeacher === false && (b.status === 'approved' || b.status === 'rejected')).length;
+      }, [bookings, currentUser]);
+
+      // =========================================================================
+      // AUTHENTICATION (LOGIN & LOGOUT)
+      // =========================================================================
+      const handleLogin = async (e) => {
+        e.preventDefault();
+        setLoginError('');
+        setLoginLoading(true);
+
+        const cleanCitizenId = loginCitizenId.trim().replace(/-/g, '');
+        const cleanPassword = loginPassword.trim();
+
+        try {
+          let userFound = null;
+
+          // 1. ค้นหาใน Supabase
+          if (supabaseClient) {
+            const { data, error } = await supabaseClient
+              .from('profiles')
+              .select('*')
+              .eq('citizen_id', cleanCitizenId)
+              .eq('password', cleanPassword)
+              .single();
+
+            if (!error && data) {
+              userFound = {
+                id: data.id,
+                citizenId: data.citizen_id,
+                name: data.full_name,
+                role: data.role,
+                department: data.department || 'โรงเรียนสกลราชวิทยานุกุล',
+                avatar: data.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+                phone: data.phone
+              };
+            }
+          }
+
+          // 2. Fallback ตรวจสอบจาก Local Profiles
+          if (!userFound) {
+            const matched = profiles.find(
+              p => p.citizenId === cleanCitizenId && p.password === cleanPassword
+            );
+            if (matched) userFound = matched;
+          }
+
+          if (userFound) {
+            setHasTriggeredLoginPopup(false);
+            setCurrentUser(userFound);
+            localStorage.setItem('sakonraj_logged_user', JSON.stringify(userFound));
+          } else {
+            setLoginError('เลขประจำตัวประชาชนหรือวัน/เดือน/ปีเกิด ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+          }
+        } catch (err) {
+          setLoginError('เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่');
+        } finally {
+          setLoginLoading(false);
+        }
+      };
+
+      const handleLogout = () => {
+        setHasTriggeredLoginPopup(false);
+        setIsTeacherNotifOpen(false);
+        setCurrentUser(null);
+        localStorage.removeItem('sakonraj_logged_user');
+        setLoginCitizenId('');
+        setLoginPassword('');
+      };
+
+      // =========================================================================
+      // CALENDAR NAVIGATION (PREV / NEXT MONTH)
+      // =========================================================================
+      const handlePrevMonth = () => {
+        if (currentMonth === 0) {
+          setCurrentMonth(11);
+          setCurrentYear(prev => prev - 1);
+        } else {
+          setCurrentMonth(prev => prev - 1);
+        }
+      };
+
+      const handleNextMonth = () => {
+        if (currentMonth === 11) {
+          setCurrentMonth(0);
+          setCurrentYear(prev => prev + 1);
+        } else {
+          setCurrentMonth(prev => prev + 1);
+        }
+      };
+
+      const handleCurrentMonth = () => {
+        const today = new Date();
+        setCurrentYear(today.getFullYear());
+        setCurrentMonth(today.getMonth());
+      };
+
+      const calendarDays = useMemo(() => {
+        const days = [];
+        const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+        const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+        for (let i = 0; i < firstDayIndex; i++) {
+          days.push({ dayNumber: null, dateStr: '' });
+        }
+        for (let d = 1; d <= totalDays; d++) {
+          const monthStr = String(currentMonth + 1).padStart(2, '0');
+          const dayStr = String(d).padStart(2, '0');
+          days.push({ dayNumber: d, dateStr: `${currentYear}-${monthStr}-${dayStr}` });
+        }
+        return days;
+      }, [currentYear, currentMonth]);
+
+      // Selected Day items
+      const selectedDateBookings = useMemo(() => {
+        if (!currentUser) return [];
+        // ถ้าเป็นครู ให้เห็นเฉพาะการจองของตนเอง
+        if (currentUser.role === 'teacher') {
+          return bookings.filter(b => b.date === selectedDate && b.userId === currentUser.id);
+        }
+        // ถ้าเป็นแอดมิน เห็นการจองทั้งหมด
+        return bookings.filter(b => b.date === selectedDate);
+      }, [bookings, selectedDate, currentUser]);
+
+      const selectedDateConflicts = useMemo(() => conflictGroups.filter(g => g.date === selectedDate), [conflictGroups, selectedDate]);
+
+      // =========================================================================
+      // CRUD ACTIONS & ADMIN CONTROLS
+      // =========================================================================
+      const triggerActionMessage = (msg) => {
+        setActionMessage(msg);
+        setTimeout(() => setActionMessage(null), 4000);
+      };
+
+      // 1. ส่งคำขอจองสถานที่
+      const handleCreateBooking = async (e) => {
+        e.preventDefault();
+        if (!currentUser || !newPurpose.trim()) return;
+
+        const targetVenue = venues.find(v => Number(v.id) === Number(newVenueId));
+        if (targetVenue && targetVenue.status === 'maintenance') {
+          alert('ไม่สามารถจองได้: สถานที่นี้อยู่ระหว่างปิดปรับปรุงชั่วคราว');
+          return;
+        }
+
+        const numericVenueId = Number(newVenueId);
+
+        if (supabaseClient) {
+          const { error } = await supabaseClient
+            .from('bookings')
+            .insert([{
+              venue_id: numericVenueId,
+              user_id: currentUser.id,
+              purpose: newPurpose.trim(),
+              attendees_count: Number(newAttendees) || 1,
+              booking_date: newDate,
+              start_time: newStartTime + ':00',
+              end_time: newEndTime + ':00',
+              status: 'pending',
+              is_read: false
+            }]);
+
+          if (error) {
+            alert('เกิดข้อผิดพลาด: ' + error.message);
+            return;
+          }
+        }
+
+        triggerActionMessage('✓ ส่งคำขอจองสถานที่เรียบร้อยแล้ว รอการอนุมัติจากแอดมิน');
+        setIsQuickBookingOpen(false);
+        setNewPurpose('');
+        loadAllData();
+      };
+
+      // 2. แอดมินอนุมัติคำขอ
+      const handleApproveBooking = async (bookingId) => {
+        if (supabaseClient) {
+          await supabaseClient
+            .from('bookings')
+            .update({
+              status: 'approved',
+              reviewed_by: currentUser.id,
+              rejection_reason: null,
+              is_read: false
+            })
+            .eq('id', bookingId);
+        }
+        triggerActionMessage(`✓ อนุมัติคำขอ #${bookingId} เรียบร้อยแล้ว`);
+        loadAllData();
+      };
+
+      // 3. แอดมินไม่อนุมัติคำขอ (พร้อมระบุเหตุผล)
+      const handleConfirmReject = async () => {
+        if (!rejectingBooking || !rejectionReasonInput.trim()) return;
+
+        if (supabaseClient) {
+          await supabaseClient
+            .from('bookings')
+            .update({
+              status: 'rejected',
+              reviewed_by: currentUser.id,
+              rejection_reason: rejectionReasonInput.trim(),
+              is_read: false
+            })
+            .eq('id', rejectingBooking.id);
+        }
+
+        triggerActionMessage(`✓ ปฏิเสธคำขอ #${rejectingBooking.id} พร้อมส่งเหตุผลให้ครูแล้ว`);
+        setRejectingBooking(null);
+        setRejectionReasonInput('');
+        loadAllData();
+      };
+
+      // 4. แอดมินเพิ่มสถานที่ใหม่
+      const handleAddVenue = async (e) => {
+        e.preventDefault();
+        if (!newVenueName.trim()) return;
+
+        if (supabaseClient) {
+          const { data, error } = await supabaseClient
+            .from('venues')
+            .insert([{
+              name: newVenueName.trim(),
+              code: newVenueCode.trim() || null,
+              building: newVenueBuilding.trim() || null,
+              capacity: Number(newVenueCapacity) || 0,
+              description: newVenueDesc.trim() || null,
+              status: 'available',
+              is_active: true
+            }])
+            .select()
+            .single();
+
+          if (!error && data) {
+            // แจ้งเตือนครูทุกคน
+            await supabaseClient
+              .from('system_notifications')
+              .insert([{
+                title: '📢 เปิดให้บริการสถานที่ใหม่',
+                message: `โรงเรียนเปิดให้บริการ "${data.name}" (${data.building}) ความจุ ${data.capacity} คน สามารถยื่นขอใช้งานได้แล้ว`,
+                type: 'venue_added',
+                venue_id: data.id,
+                created_by: currentUser.id
+              }]);
+          }
+        }
+
+        triggerActionMessage('✓ เพิ่มสถานที่ใหม่และส่งการแจ้งเตือนถึงครูทุกคนเรียบร้อยแล้ว');
+        setNewVenueName('');
+        setNewVenueCode('');
+        setNewVenueBuilding('');
+        setNewVenueDesc('');
+        loadAllData();
+      };
+
+      // 5. แอดมินสลับสถานะ ปิดปรับปรุงชั่วคราว
+      const handleToggleVenueStatus = async (venue) => {
+        const nextStatus = venue.status === 'maintenance' ? 'available' : 'maintenance';
+
+        if (supabaseClient) {
+          await supabaseClient
+            .from('venues')
+            .update({ status: nextStatus })
+            .eq('id', venue.id);
+
+          // ส่งการแจ้งเตือนไปยังครูทุกคน
+          const noticeTitle = nextStatus === 'maintenance'
+            ? '⚠️ แจ้งปิดปรับปรุงสถานที่ชั่วคราว'
+            : '✅ เปิดให้บริการสถานที่ตามปกติ';
+          const noticeMsg = nextStatus === 'maintenance'
+            ? `สถานที่ "${venue.name}" ปิดปรับปรุงชั่วคราวเพื่อซ่อมบำรุง ขออภัยในความไม่สะดวก`
+            : `สถานที่ "${venue.name}" ดำเนินการปรับปรุงเสร็จสิ้น พร้อมเปิดให้จองใช้งานตามปกติ`;
+
+          await supabaseClient
+            .from('system_notifications')
+            .insert([{
+              title: noticeTitle,
+              message: noticeMsg,
+              type: 'venue_maintenance',
+              venue_id: venue.id,
+              created_by: currentUser.id
+            }]);
+        }
+
+        triggerActionMessage(`✓ เปลี่ยนสถานะ "${venue.name}" เป็น ${nextStatus === 'maintenance' ? 'ปิดปรับปรุง' : 'พร้อมใช้งาน'}`);
+        loadAllData();
+      };
+
+      // 6. แอดมินเพิ่มครูใหม่
+      const handleAddTeacher = async (e) => {
+        e.preventDefault();
+        if (!newUserCitizenId.trim() || !newUserPassword.trim() || !newUserName.trim()) return;
+
+        const defaultAvatar = newUserAvatar.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
+
+        if (supabaseClient) {
+          const { error } = await supabaseClient
+            .from('profiles')
+            .insert([{
+              citizen_id: newUserCitizenId.trim().replace(/-/g, ''),
+              password: newUserPassword.trim(),
+              full_name: newUserName.trim(),
+              role: newUserRole,
+              department: newUserDept.trim() || 'กลุ่มสาระการเรียนรู้',
+              avatar_url: defaultAvatar
+            }]);
+
+          if (error) {
+            alert('ไม่สามารถเพิ่มได้: ' + error.message);
+            return;
+          }
+        }
+
+        triggerActionMessage(`✓ เพิ่มข้อมูล "${newUserName}" ในระบบเรียบร้อย`);
+        setNewUserCitizenId('');
+        setNewUserPassword('');
+        setNewUserName('');
+        setNewUserDept('');
+        setNewUserAvatar('');
+        loadAllData();
+      };
+
+      // 7. ครูรับทราบการแจ้งเตือน
+      const handleAcknowledgeNotifications = async () => {
+        if (!currentUser) return;
+        if (supabaseClient) {
+          await supabaseClient
+            .from('bookings')
+            .update({ is_read: true })
+            .eq('user_id', currentUser.id);
+        }
+        setBookings(prev =>
+          prev.map(b => (b.userId === currentUser.id ? { ...b, hasBeenNotifiedToTeacher: true } : b))
+        );
+        setIsTeacherNotifOpen(false);
+      };
+
+      // =========================================================================
+      // VIEW: LOGIN SCREEN (เมื่อยังไม่ได้เข้าสู่ระบบ)
+      // =========================================================================
+      if (!currentUser) {
+        return (
+          <div className="min-h-screen bg-white flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden p-8">
+              {/* School Logo */}
+              <div className="text-center mb-6">
+                <img
+                  src={SCHOOL_LOGO_SRC}
+                  alt="ตราสัญลักษณ์โรงเรียนสกลราชวิทยานุกุล"
+                  className="w-28 h-28 mx-auto object-contain mb-3 drop-shadow-sm"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://upload.wikimedia.org/wikipedia/th/thumb/f/f6/Sakonrajwittayanukul_School_crest.png/180px-Sakonrajwittayanukul_School_crest.png';
+                  }}
+                />
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">ระบบจองสถานที่</h1>
+                <p className="text-sm font-medium text-red-800">โรงเรียนสกลราชวิทยานุกุล</p>
+                <p className="text-xs text-slate-400 mt-1">Sakonrajwittayanukul School Facility Booking System</p>
+              </div>
+
+              {/* Login Form */}
+              <form onSubmit={handleLogin} className="space-y-4">
+                {loginError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2">
+                    <span className="text-sm">⚠️</span>
+                    <span>{loginError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    ชื่อผู้ใช้งาน (เลขประจำตัวประชาชน 13 หลัก) <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={13}
+                    value={loginCitizenId}
+                    onChange={e => setLoginCitizenId(e.target.value)}
+                    placeholder="เช่น 1479900123456"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:bg-white transition"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    รหัสผ่าน (วัน/เดือน/ปีเกิด เช่น 15/08/2530) <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={e => setLoginPassword(e.target.value)}
+                    placeholder="วว/ดด/ปปปป เช่น 01/01/2525"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:bg-white transition"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loginLoading}
+                  className="w-full py-3 bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2"
+                >
+                  {loginLoading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
+                </button>
+              </form>
+
+              {/* Quick Demo Helper Box */}
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">
+                  บัญชีตัวอย่างสำหรับทดสอบ (คลิกเพื่อกรอกอัตโนมัติ):
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginCitizenId('1479900123456');
+                      setLoginPassword('01/01/2525');
+                    }}
+                    className="p-2.5 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-xl text-xs text-left transition flex items-center justify-between"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-800">แอดมิน: นายวิโรจน์ อาคารชัย</span>
+                      <div className="text-[10px] text-slate-500">ID: 1479900123456 | เกิด: 01/01/2525</div>
+                    </div>
+                    <span className="px-2 py-0.5 bg-red-100 text-red-800 rounded font-bold text-[10px]">แอดมิน</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginCitizenId('1479900234567');
+                      setLoginPassword('15/08/2530');
+                    }}
+                    className="p-2.5 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-xl text-xs text-left transition flex items-center justify-between"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-800">ครู: ครูศิริพร ใจดี</span>
+                      <div className="text-[10px] text-slate-500">ID: 1479900234567 | เกิด: 15/08/2530</div>
+                    </div>
+                    <span className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded font-bold text-[10px]">ครู</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // =========================================================================
+      // MAIN DASHBOARD (เมื่อล็อกอินแล้ว)
+      // =========================================================================
+      const isAdmin = currentUser.role === 'admin';
+
+      return (
+        <div className="min-h-screen bg-white text-slate-800">
+          {/* Action Success Toast */}
+          {actionMessage && (
+            <div className="fixed top-4 right-4 z-50 bg-emerald-700 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl animate-fade-in flex items-center gap-2">
+              <span>✓</span>
+              <span>{actionMessage}</span>
+            </div>
+          )}
+
+          {/* Top Header */}
+          <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+              {/* Left: School Official Logo & School Title */}
+              <div className="flex items-center gap-3.5">
+                <img
+                  src={SCHOOL_LOGO_SRC}
+                  alt="ตราสัญลักษณ์โรงเรียนสกลราชวิทยานุกุล"
+                  className="h-14 w-auto object-contain"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://upload.wikimedia.org/wikipedia/th/thumb/f/f6/Sakonrajwittayanukul_School_crest.png/180px-Sakonrajwittayanukul_School_crest.png';
+                  }}
+                />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                      ระบบจองสถานที่
+                    </h1>
+                    <span className="hidden sm:inline-block px-2.5 py-0.5 bg-red-50 text-red-800 text-xs font-semibold rounded-full border border-red-200">
+                      โรงเรียนสกลราชวิทยานุกุล
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">Sakonrajwittayanukul School Facility Booking System</p>
+                </div>
+              </div>
+
+              {/* Right: Actions, Profile & Logout */}
+              <div className="flex items-center gap-2.5">
+                {/* ปุ่มเฉพาะ Admin: จัดการสถานที่ */}
+                {isAdmin && (
+                  <button
+                    onClick={() => setIsVenueMgmtOpen(true)}
+                    className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                  >
+                    <span>🏢 จัดการสถานที่</span>
+                  </button>
+                )}
+
+                {/* ปุ่มเฉพาะ Admin: จัดการครู */}
+                {isAdmin && (
+                  <button
+                    onClick={() => setIsUserMgmtOpen(true)}
+                    className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                  >
+                    <span>👥 จัดการบุคลากร</span>
+                  </button>
+                )}
+
+                {/* ปุ่มจองสถานที่ด่วน (สำหรับทุกคน) */}
+                <button
+                  onClick={() => setIsQuickBookingOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-800 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition"
+                >
+                  <span>+ จองสถานที่ด่วน</span>
+                </button>
+
+                {/* Notification Bell (ครู) */}
+                {!isAdmin && (
+                  <button
+                    onClick={() => setIsTeacherNotifOpen(true)}
+                    className="relative p-2 text-slate-600 hover:text-red-800 hover:bg-red-50 rounded-xl transition"
+                    title="การแจ้งเตือน"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 flex h-4 w-4">
+                        <span className="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-red-600 text-[9px] font-bold text-white">
+                          {unreadCount}
+                        </span>
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {/* User Profile Badge */}
+                <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+                  <img
+                    src={currentUser.avatar}
+                    alt=""
+                    className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-200"
+                  />
+                  <div className="hidden lg:block text-left">
+                    <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      {currentUser.name}
+                      <span className={`text-[10px] px-2 py-0.2 rounded-full font-semibold ${isAdmin ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'}`}>
+                        {isAdmin ? 'แอดมิน' : 'ครู'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate max-w-[140px]">{currentUser.department}</div>
+                  </div>
+                </div>
+
+                {/* LOGOUT BUTTON */}
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-2 text-xs font-bold text-slate-600 hover:text-red-700 hover:bg-red-50 border border-slate-200 rounded-xl transition flex items-center gap-1"
+                  title="ออกจากระบบ"
+                >
+                  <span>ออกจากระบบ</span>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Main Body */}
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Top Bar for Role Status */}
+            <div className="mb-6 p-4 rounded-2xl border border-slate-200 bg-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-xl ${isAdmin ? 'bg-red-900 text-white' : 'bg-slate-100 text-red-800'}`}>
+                  {isAdmin ? '🛡️' : '👨‍🏫'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-900">
+                      {isAdmin ? 'แผงควบคุมผู้ดูแลระบบ (Admin Dashboard)' : `ยินดีต้อนรับ ${currentUser.name}`}
+                    </span>
+                    {isAdmin && conflictGroups.length > 0 && (
+                      <span className="px-2 py-0.5 bg-red-100 text-red-800 text-xs font-bold rounded-full animate-pulse">
+                        ⚠️ ตรวจพบ {conflictGroups.length} ข้อขัดแย้ง
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {isAdmin
+                      ? 'คุณมีสิทธิ์ในการอนุมัติคำขอ, จัดการข้อขัดแย้งเวลา, เพิ่มสถานที่ และจัดการข้อมูลคุณครู'
+                      : `สังกัด: ${currentUser.department} | ตรวจสอบปฏิทินการใช้สถานที่และส่งคำขอจอง`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Admin Shortcuts on small screens */}
+              {isAdmin && (
+                <div className="flex items-center gap-2 md:hidden">
+                  <button
+                    onClick={() => setIsVenueMgmtOpen(true)}
+                    className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg"
+                  >
+                    🏢 จัดการสถานที่
+                  </button>
+                  <button
+                    onClick={() => setIsUserMgmtOpen(true)}
+                    className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg"
+                  >
+                    👥 จัดการบุคลากร
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* CALENDAR WITH MONTH NAVIGATION */}
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-8 shadow-xs">
+              {/* Calendar Header with Prev/Next Month Controls */}
+              <div className="p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handlePrevMonth}
+                      className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition"
+                      title="เดือนก่อนหน้า"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={handleNextMonth}
+                      className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition"
+                      title="เดือนถัดไป"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {THAI_MONTHS[currentMonth]} {currentYear + 543} ({currentYear})
+                  </h2>
+
+                  <button
+                    onClick={handleCurrentMonth}
+                    className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 font-medium"
+                  >
+                    เดือนปัจจุบัน
+                  </button>
+                </div>
+
+                {/* Status Legend */}
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500"></span><span className="text-slate-600">อนุมัติแล้ว</span></span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-400"></span><span className="text-slate-600">รออนุมัติ</span></span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-rose-500"></span><span className="text-slate-600">ไม่อนุมัติ</span></span>
+                  {isAdmin && (
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-600 ring-2 ring-red-300"></span><span className="font-bold text-red-700">จองทับซ้อน (Conflict)</span></span>
+                  )}
+                </div>
+              </div>
+
+              {/* Days Header */}
+              <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-bold text-slate-600 py-3">
+                <div className="text-red-700">อาทิตย์</div>
+                <div>จันทร์</div>
+                <div>อังคาร</div>
+                <div>พุธ</div>
+                <div>พฤหัสบดี</div>
+                <div>ศุกร์</div>
+                <div className="text-red-700">เสาร์</div>
+              </div>
+
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 bg-white">
+                {calendarDays.map((item, index) => {
+                  if (!item.dayNumber) {
+                    return <div key={`empty-${index}`} className="min-h-[110px] bg-slate-50/40 p-2"></div>;
+                  }
+
+                  const dateBookings = bookings.filter(b => b.date === item.dateStr);
+                  const hasPending = dateBookings.some(b => b.status === 'pending');
+                  const hasConflict = conflictDates.has(item.dateStr);
+                  const isSelected = selectedDate === item.dateStr;
+
+                  return (
+                    <div
+                      key={item.dateStr}
+                      onClick={() => {
+                        setSelectedDate(item.dateStr);
+                        if (isAdmin) setIsAdminDayModalOpen(true);
+                      }}
+                      className={`min-h-[110px] p-2 transition cursor-pointer relative flex flex-col justify-between ${
+                        isSelected ? 'bg-red-50/50 ring-2 ring-red-700 ring-inset' : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full ${isSelected ? 'bg-red-800 text-white' : 'text-slate-700'}`}>
+                          {item.dayNumber}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {isAdmin && hasConflict && (
+                            <span className="px-1.5 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded animate-pulse">
+                              ⚠️ ชนกัน
+                            </span>
+                          )}
+                          {isAdmin && hasPending && !hasConflict && (
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-amber-200" title="มีรายการรออนุมัติ"></span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 flex-1 overflow-hidden">
+                        {dateBookings.slice(0, 2).map(b => (
+                          <div
+                            key={b.id}
+                            className={`text-[11px] px-2 py-0.5 rounded truncate border font-medium flex items-center justify-between ${
+                              b.status === 'approved'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : b.status === 'rejected'
+                                ? 'bg-rose-50 text-rose-800 border-rose-200 line-through opacity-75'
+                                : 'bg-amber-50 text-amber-900 border-amber-200'
+                            }`}
+                          >
+                            <span className="truncate">{b.venueName}</span>
+                            <span className="text-[9px] opacity-75 ml-1">{b.startTime}</span>
+                          </div>
+                        ))}
+                        {dateBookings.length > 2 && (
+                          <div className="text-[10px] text-slate-400 text-center font-medium">+{dateBookings.length - 2} รายการ</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* SELECTED DAY PANEL */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-3">
+                <div>
+                  <span className="text-xs font-bold text-red-800 uppercase tracking-wide">
+                    {isAdmin ? 'รายการจองประจำวัน (Admin Management)' : 'รายการจองของคุณในวันที่เลือก'}
+                  </span>
+                  <h3 className="text-xl font-bold text-slate-900">วันที่ {selectedDate}</h3>
+                </div>
+
+                {/* เฉพาะ Admin เท่านั้นที่เห็นปุ่มเปิด Modal จัดการรายวัน */}
+                {isAdmin && (
+                  <button
+                    onClick={() => setIsAdminDayModalOpen(true)}
+                    className="px-4 py-2 bg-red-800 hover:bg-red-700 text-white rounded-xl text-sm font-semibold shadow-xs transition"
+                  >
+                    เปิดโหมดจัดการรายวัน (Admin Modal)
+                  </button>
+                )}
+              </div>
+
+              {/* CONFLICT BANNER (เฉพาะ Admin เท่านั้นที่เห็น) */}
+              {isAdmin && selectedDateConflicts.length > 0 && (
+                <div className="mt-4 p-4 rounded-2xl bg-red-50 border-2 border-red-400">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">⚠️</span>
+                    <div className="flex-1">
+                      <h4 className="text-base font-bold text-red-900">ตรวจพบการจองทับซ้อนในวันนี้!</h4>
+                      <p className="text-xs text-red-700 mt-0.5">มีคำขอจองสถานที่เดียวกันและช่วงเวลาคาบเกี่ยวกัน แอดมินต้องเป็นผู้พิจารณาอนุมัติเพียง 1 รายการ</p>
+                      <button
+                        onClick={() => setIsAdminDayModalOpen(true)}
+                        className="mt-2.5 px-3 py-1 bg-red-700 text-white text-xs font-bold rounded-lg"
+                      >
+                        จัดการข้อขัดแย้งเดี๋ยวนี้ →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Day Bookings List */}
+              <div className="mt-6">
+                {selectedDateBookings.length === 0 ? (
+                  <div className="text-center py-10 text-slate-400 text-sm">
+                    {isAdmin ? 'ไม่มีรายการจองในวันนี้' : 'คุณยังไม่มีรายการจองในวันที่เลือก'}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedDateBookings.map(booking => {
+                      const isConflict = isAdmin && selectedDateConflicts.some(g => g.bookings.some(b => b.id === booking.id));
+                      return (
+                        <div
+                          key={booking.id}
+                          className={`p-5 rounded-2xl border transition ${
+                            isConflict
+                              ? 'border-red-400 bg-red-50/40 ring-1 ring-red-400'
+                              : booking.status === 'approved'
+                              ? 'border-emerald-200 bg-white'
+                              : booking.status === 'rejected'
+                              ? 'border-slate-200 bg-slate-50'
+                              : 'border-amber-200 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div>
+                              <div className="font-bold text-base text-slate-900">{booking.venueName}</div>
+                              <p className="text-xs text-slate-500">เวลา: {booking.startTime} - {booking.endTime} น.</p>
+                            </div>
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                              booking.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                              booking.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-900'
+                            }`}>
+                              {booking.status === 'approved' ? 'อนุมัติแล้ว' : booking.status === 'rejected' ? 'ไม่อนุมัติ' : 'รออนุมัติ'}
+                            </span>
+                          </div>
+
+                          <div className="my-2 p-2.5 bg-slate-50 rounded-xl text-xs text-slate-700">
+                            <strong>วัตถุประสงค์:</strong> {booking.purpose}
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
+                            <div>
+                              <span className="font-medium text-slate-800">{booking.userName}</span> ({booking.userDepartment})
+                            </div>
+                            <div>ผู้เข้าร่วม {booking.attendeesCount} คน</div>
+                          </div>
+
+                          {/* แสดงเหตุผลที่ไม่อนุมัติ และชื่อแอดมิน */}
+                          {booking.status === 'rejected' && booking.rejectionReason && (
+                            <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900">
+                              <div className="font-bold">❌ เหตุผลที่ถูกปฏิเสธ:</div>
+                              <p className="mt-0.5 text-slate-700">{booking.rejectionReason}</p>
+                              {booking.respondedByAdminName && (
+                                <p className="text-[11px] text-slate-500 mt-1">ผู้ตอบกลับ: {booking.respondedByAdminName}</p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* เฉพาะ Admin เท่านั้นที่เห็นปุ่มอนุมัติ/ไม่อนุมัติ */}
+                          {isAdmin && booking.status === 'pending' && (
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setRejectingBooking(booking);
+                                  setRejectionReasonInput('');
+                                }}
+                                className="px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-xs font-semibold rounded-lg"
+                              >
+                                ไม่อนุมัติ...
+                              </button>
+                              <button
+                                onClick={() => handleApproveBooking(booking.id)}
+                                className="px-3 py-1.5 bg-emerald-700 text-white text-xs font-semibold rounded-lg hover:bg-emerald-800"
+                              >
+                                อนุมัติ
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </main>
+
+          {/* =========================================================================
+              MODAL: QUICK BOOKING (จองสถานที่ด่วน)
+          ========================================================================== */}
+          {isQuickBookingOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col max-h-[95vh]">
+                <div className="bg-red-800 p-5 text-white flex items-center justify-between">
+                  <h3 className="text-lg font-bold">แบบฟอร์มจองสถานที่ด่วน</h3>
+                  <button onClick={() => setIsQuickBookingOpen(false)} className="text-white/80 hover:text-white text-lg">✕</button>
+                </div>
+
+                <form onSubmit={handleCreateBooking} className="p-6 overflow-y-auto space-y-4 flex-1">
+                  {bookingConflictWarning && (
+                    <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900">
+                      {bookingConflictWarning}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">สถานที่ *</label>
+                    <select
+                      value={newVenueId}
+                      onChange={e => setNewVenueId(Number(e.target.value))}
+                      className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium"
+                    >
+                      {venues.map(v => (
+                        <option key={v.id} value={v.id} disabled={v.status === 'maintenance'}>
+                          {v.name} ({v.building}) {v.status === 'maintenance' ? '⚠️ [ปิดปรับปรุงชั่วคราว]' : `(จุ ${v.capacity} คน)`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">วันที่ต้องการใช้งาน *</label>
+                    <input
+                      type="date"
+                      value={newDate}
+                      onChange={e => setNewDate(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">เวลาเริ่ม *</label>
+                      <input
+                        type="time"
+                        value={newStartTime}
+                        onChange={e => setNewStartTime(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">เวลาสิ้นสุด *</label>
+                      <input
+                        type="time"
+                        value={newEndTime}
+                        onChange={e => setNewEndTime(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">วัตถุประสงค์ / ชื่องาน *</label>
+                    <textarea
+                      value={newPurpose}
+                      onChange={e => setNewPurpose(e.target.value)}
+                      rows={3}
+                      placeholder="ระบุรายละเอียดกิจกรรม เช่น การประชุมกลุ่มสาระฯ, ค่ายติวโอลิมปิก..."
+                      className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">จำนวนผู้เข้าร่วม (คน)</label>
+                    <input
+                      type="number"
+                      value={newAttendees}
+                      onChange={e => setNewAttendees(Number(e.target.value))}
+                      className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm"
+                    />
+                  </div>
+
+                  <div className="pt-4 border-t flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickBookingOpen(false)}
+                      className="px-4 py-2 text-slate-600 rounded-xl text-sm font-semibold"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2 bg-red-800 text-white rounded-xl text-sm font-semibold hover:bg-red-700 shadow-xs"
+                    >
+                      ส่งคำขอจอง
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              MODAL: ADMIN DAY MANAGEMENT & CONFLICT RESOLUTION (เฉพาะ Admin)
+          ========================================================================== */}
+          {isAdmin && isAdminDayModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full overflow-hidden flex flex-col max-h-[92vh]">
+                <div className="bg-red-900 p-5 text-white flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold">จัดการคำขอจองประจำวัน</h3>
+                      <span className="px-2.5 py-0.5 bg-white/20 text-white text-xs font-semibold rounded-full">
+                        {selectedDate}
+                      </span>
+                    </div>
+                    <p className="text-xs text-red-200">ตรวจสอบความทับซ้อนและอนุมัติการใช้งาน (Admin Role Only)</p>
+                  </div>
+                  <button onClick={() => setIsAdminDayModalOpen(false)} className="text-white/80 hover:text-white text-lg">✕</button>
+                </div>
+
+                <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                  {/* CONFLICT ALERT GROUP */}
+                  {selectedDateConflicts.length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-base font-bold text-red-900 flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-red-600 animate-ping"></span>
+                        รายการที่มีการจองทับซ้อน (Conflict Alert - ต้องตัดสินใจ)
+                      </h4>
+
+                      {selectedDateConflicts.map((group, gIdx) => (
+                        <div key={gIdx} className="p-5 rounded-2xl border-2 border-red-400 bg-red-50/50 space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-red-200 gap-2">
+                            <div>
+                              <div className="text-xs font-bold text-red-600">⚠️ ตรวจพบสถานที่และเวลาคาบเกี่ยวกัน</div>
+                              <div className="text-base font-extrabold text-red-950">{group.venueName}</div>
+                            </div>
+                            <div className="text-xs font-bold text-red-800 bg-red-100 px-3 py-1 rounded-full border border-red-300">
+                              ช่วงเวลาคาบเกี่ยว: {group.timeRange}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {group.bookings.map((item, idx) => (
+                              <div key={item.id} className="p-4 rounded-xl bg-white border border-red-200 shadow-xs flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded">
+                                      คำขอที่ {idx + 1}
+                                    </span>
+                                    <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">
+                                      ⏰ {item.startTime} - {item.endTime} น.
+                                    </span>
+                                  </div>
+
+                                  <div className="font-bold text-sm text-slate-900">{item.userName}</div>
+                                  <div className="text-xs text-slate-500">{item.userDepartment}</div>
+
+                                  <div className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-100 my-2">
+                                    <strong>วัตถุประสงค์:</strong> {item.purpose}
+                                  </div>
+                                </div>
+
+                                <div className="pt-3 border-t flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setRejectingBooking(item);
+                                      setRejectionReasonInput('');
+                                    }}
+                                    className="flex-1 py-2 bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl hover:bg-rose-100"
+                                  >
+                                    ❌ ไม่อนุมัติ
+                                  </button>
+                                  <button
+                                    onClick={() => handleApproveBooking(item.id)}
+                                    className="flex-1 py-2 bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-emerald-800"
+                                  >
+                                    ✅ อนุมัติคำขอนี้
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* ALL BOOKINGS OF DAY */}
+                  <div className="space-y-3">
+                    <h4 className="text-base font-bold text-slate-900">
+                      รายการจองทั้งหมดในวันที่ {selectedDate} ({bookings.filter(b => b.date === selectedDate).length} รายการ)
+                    </h4>
+                    {bookings.filter(b => b.date === selectedDate).map(b => (
+                      <div key={b.id} className="p-4 rounded-2xl border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-slate-900">{b.venueName}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              b.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                              b.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {b.status === 'approved' ? 'อนุมัติแล้ว' : b.status === 'rejected' ? 'ไม่อนุมัติ' : 'รออนุมัติ'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-600 mt-1">
+                            {b.startTime} - {b.endTime} น. • ผู้ขอ: {b.userName} ({b.userDepartment})
+                          </div>
+                          <div className="text-xs text-slate-500">กิจกรรม: {b.purpose}</div>
+                          {b.status === 'rejected' && b.rejectionReason && (
+                            <div className="text-xs text-rose-700 bg-rose-50 p-2 rounded-lg mt-1">
+                              <strong>เหตุผลที่ไม่อนุมัติ:</strong> {b.rejectionReason}
+                            </div>
+                          )}
+                        </div>
+
+                        {b.status === 'pending' && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setRejectingBooking(b);
+                                setRejectionReasonInput('');
+                              }}
+                              className="px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold rounded-lg"
+                            >
+                              ไม่อนุมัติ...
+                            </button>
+                            <button
+                              onClick={() => handleApproveBooking(b.id)}
+                              className="px-3 py-1.5 bg-emerald-700 text-white text-xs font-semibold rounded-lg hover:bg-emerald-800"
+                            >
+                              อนุมัติ
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t flex justify-end">
+                  <button onClick={() => setIsAdminDayModalOpen(false)} className="px-5 py-2 bg-slate-800 text-white rounded-xl text-sm font-semibold">
+                    ปิดหน้าต่าง
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              MODAL: VENUE MANAGEMENT (เฉพาะ Admin)
+          ========================================================================== */}
+          {isAdmin && isVenueMgmtOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden flex flex-col max-h-[92vh]">
+                <div className="bg-slate-900 p-5 text-white flex items-center justify-between">
+                  <h3 className="text-lg font-bold">🏢 จัดการสถานที่และการปิดปรับปรุง</h3>
+                  <button onClick={() => setIsVenueMgmtOpen(false)} className="text-white/80 hover:text-white text-lg">✕</button>
+                </div>
+
+                <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                  {/* รายการสถานที่ทั้งหมด */}
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 mb-3">รายชื่อสถานที่ในโรงเรียน</h4>
+                    <div className="space-y-2.5">
+                      {venues.map(v => (
+                        <div key={v.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-bold text-sm text-slate-900">{v.name}</div>
+                            <div className="text-xs text-slate-500">{v.building} • ความจุ {v.capacity} คน</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${v.status === 'maintenance' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                              {v.status === 'maintenance' ? 'ปิดปรับปรุง' : 'พร้อมใช้งาน'}
+                            </span>
+                            <button
+                              onClick={() => handleToggleVenueStatus(v)}
+                              className={`px-3 py-1 text-xs font-bold rounded-lg border transition ${
+                                v.status === 'maintenance'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                              }`}
+                            >
+                              {v.status === 'maintenance' ? 'เปิดใช้งาน' : 'ปิดปรับปรุงชั่วคราว'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ฟอร์มเพิ่มสถานที่ใหม่ */}
+                  <form onSubmit={handleAddVenue} className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
+                    <h4 className="text-sm font-bold text-slate-900">+ เพิ่มสถานที่ใหม่</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อสถานที่ *</label>
+                        <input
+                          type="text"
+                          value={newVenueName}
+                          onChange={e => setNewVenueName(e.target.value)}
+                          placeholder="เช่น ห้องปฏิบัติการดนตรีสากล"
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">รหัสสถานที่</label>
+                        <input
+                          type="text"
+                          value={newVenueCode}
+                          onChange={e => setNewVenueCode(e.target.value)}
+                          placeholder="เช่น LAB-MUS"
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">อาคาร / ที่ตั้ง *</label>
+                        <input
+                          type="text"
+                          value={newVenueBuilding}
+                          onChange={e => setNewVenueBuilding(e.target.value)}
+                          placeholder="เช่น อาคาร 3 ชั้น 1"
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">ความจุ (คน)</label>
+                        <input
+                          type="number"
+                          value={newVenueCapacity}
+                          onChange={e => setNewVenueCapacity(e.target.value)}
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">คำอธิบาย</label>
+                      <textarea
+                        value={newVenueDesc}
+                        onChange={e => setNewVenueDesc(e.target.value)}
+                        rows={2}
+                        placeholder="รายละเอียดอุปกรณ์และสิ่งอำนวยความสะดวก..."
+                        className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-red-800 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition"
+                    >
+                      บันทึกและส่งแจ้งเตือนให้ครูทุกคน
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              MODAL: USER MANAGEMENT (เฉพาะ Admin)
+          ========================================================================== */}
+          {isAdmin && isUserMgmtOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full overflow-hidden flex flex-col max-h-[92vh]">
+                <div className="bg-slate-900 p-5 text-white flex items-center justify-between">
+                  <h3 className="text-lg font-bold">👥 จัดการรายชื่อครูและบุคลากร</h3>
+                  <button onClick={() => setIsUserMgmtOpen(false)} className="text-white/80 hover:text-white text-lg">✕</button>
+                </div>
+
+                <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                  {/* รายชื่อครูและแอดมิน */}
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 mb-3">รายชื่อผู้ใช้งานทั้งหมดในระบบ ({profiles.length} ท่าน)</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto">
+                      {profiles.map(p => (
+                        <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center gap-3">
+                          <img src={p.avatar} alt="" className="w-10 h-10 rounded-full object-cover ring-1 ring-slate-300" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-xs text-slate-900 truncate">{p.name}</span>
+                              <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-semibold ${p.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-slate-200 text-slate-700'}`}>
+                                {p.role === 'admin' ? 'แอดมิน' : 'ครู'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate">{p.department}</div>
+                            <div className="text-[10px] text-slate-400">ID: {p.citizenId} | เกิด: {p.password}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ฟอร์มเพิ่มครูใหม่ */}
+                  <form onSubmit={handleAddTeacher} className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
+                    <h4 className="text-sm font-bold text-slate-900">+ เพิ่มรายชื่อครูหรือแอดมินใหม่</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">เลขประจำตัวประชาชน (13 หลัก) *</label>
+                        <input
+                          type="text"
+                          maxLength={13}
+                          value={newUserCitizenId}
+                          onChange={e => setNewUserCitizenId(e.target.value)}
+                          placeholder="เช่น 1479900999999"
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">วัน/เดือน/ปีเกิด (รหัสผ่าน) *</label>
+                        <input
+                          type="text"
+                          value={newUserPassword}
+                          onChange={e => setNewUserPassword(e.target.value)}
+                          placeholder="เช่น 10/10/2535"
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อ-นามสกุล *</label>
+                        <input
+                          type="text"
+                          value={newUserName}
+                          onChange={e => setNewUserName(e.target.value)}
+                          placeholder="เช่น ครูสมชาย ใจกล้า"
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">กลุ่มสาระการเรียนรู้ / หน่วยงาน</label>
+                        <input
+                          type="text"
+                          value={newUserDept}
+                          onChange={e => setNewUserDept(e.target.value)}
+                          placeholder="เช่น กลุ่มสาระการเรียนรู้สังคมศึกษาฯ"
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">สิทธิ์การใช้งาน (Role)</label>
+                        <select
+                          value={newUserRole}
+                          onChange={e => setNewUserRole(e.target.value)}
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-medium"
+                        >
+                          <option value="teacher">คุณครู (Teacher)</option>
+                          <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">ลิงก์รูปโปรไฟล์ (Avatar URL)</label>
+                        <input
+                          type="text"
+                          value={newUserAvatar}
+                          onChange={e => setNewUserAvatar(e.target.value)}
+                          placeholder="https://... หรือปล่อยว่างเพื่อใช้รูปเริ่มต้น"
+                          className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-red-800 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition mt-2"
+                    >
+                      บันทึกรายชื่อลงฐานข้อมูล
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              MODAL: TEACHER NOTIFICATIONS (ผลการจอง + ประกาศสถานที่)
+          ========================================================================== */}
+          {isTeacherNotifOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="bg-red-800 p-5 text-white flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl">🔔</span>
+                    <div>
+                      <h3 className="text-lg font-bold">การแจ้งเตือนและข่าวสาร</h3>
+                      <p className="text-xs text-red-100">โรงเรียนสกลราชวิทยานุกุล</p>
+                    </div>
+                  </div>
+                  <button onClick={handleAcknowledgeNotifications} className="text-white/80 hover:text-white text-lg">✕</button>
+                </div>
+
+                <div className="p-6 overflow-y-auto space-y-4 flex-1">
+                  {/* System Announcements */}
+                  {systemNotifications.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">ประกาศสถานที่จากงานอาคาร</div>
+                      {systemNotifications.map(n => (
+                        <div key={n.id} className="p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-xs">
+                          <div className="font-bold text-amber-900">{n.title}</div>
+                          <p className="text-amber-800 mt-1">{n.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Booking Results */}
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider pt-2">ผลการพิจารณาคำขอจองของคุณ</div>
+                  {teacherNotifications.length === 0 ? (
+                    <div className="text-center py-6 text-slate-400 text-xs">ไม่มีรายการอัปเดตใหม่ในขณะนี้</div>
+                  ) : (
+                    teacherNotifications.map(item => (
+                      <div
+                        key={item.id}
+                        className={`p-4 rounded-2xl border ${item.status === 'rejected' ? 'bg-rose-50/70 border-rose-300' : 'bg-emerald-50/70 border-emerald-300'}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${item.status === 'rejected' ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                            {item.status === 'rejected' ? '❌ ไม่อนุมัติ' : '✅ อนุมัติแล้ว'}
+                          </span>
+                          <span className="text-[11px] text-slate-400">{item.respondedAt || item.createdAt}</span>
+                        </div>
+
+                        <h4 className="font-bold text-sm text-slate-900">{item.venueName}</h4>
+                        <p className="text-xs text-slate-600">วันที่ {item.date} เวลา {item.startTime} - {item.endTime} น.</p>
+                        <p className="text-xs text-slate-500 mt-0.5"><strong>กิจกรรม:</strong> {item.purpose}</p>
+
+                        {item.status === 'rejected' && (
+                          <div className="mt-3 p-3 bg-white rounded-xl border border-rose-200 shadow-xs">
+                            <div className="text-xs font-bold text-rose-800 mb-1">เหตุผลที่ถูกปฏิเสธ:</div>
+                            <p className="text-xs text-slate-800 bg-rose-50/60 p-2 rounded-lg">
+                              {item.rejectionReason || 'ไม่ระบุเหตุผล'}
+                            </p>
+                            {item.respondedByAdminName && (
+                              <div className="mt-1.5 text-[11px] text-slate-500">
+                                ผู้ตอบกลับ: <strong className="text-slate-800">{item.respondedByAdminName}</strong>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t flex justify-end">
+                  <button
+                    onClick={handleAcknowledgeNotifications}
+                    className="px-6 py-2.5 bg-red-800 text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition"
+                  >
+                    รับทราบทั้งหมด
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              MODAL: MANDATORY REJECTION REASON (เฉพาะ Admin)
+          ========================================================================== */}
+          {rejectingBooking && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-2xl border border-rose-200 max-w-lg w-full overflow-hidden">
+                <div className="bg-rose-800 p-5 text-white flex items-center justify-between">
+                  <h3 className="text-base font-bold">ระบุเหตุผลที่ไม่อนุมัติคำขอ</h3>
+                  <button onClick={() => setRejectingBooking(null)} className="text-white/80 hover:text-white">✕</button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="p-3 bg-slate-50 rounded-xl border text-xs text-slate-700">
+                    <div className="font-bold text-slate-900">{rejectingBooking.venueName}</div>
+                    <div>ผู้ขอ: {rejectingBooking.userName} ({rejectingBooking.userDepartment})</div>
+                    <div>วันที่: {rejectingBooking.date} เวลา: {rejectingBooking.startTime} - {rejectingBooking.endTime} น.</div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      เหตุผลในการไม่อนุมัติ <span className="text-rose-600">* (จำเป็นต้องกรอก)</span>
+                    </label>
+                    <textarea
+                      value={rejectionReasonInput}
+                      onChange={e => setRejectionReasonInput(e.target.value)}
+                      rows={4}
+                      placeholder="พิมพ์เหตุผลที่ไม่อนุมัติ (บังคับกรอกก่อนกดยืนยัน)..."
+                      className="w-full p-3 border rounded-xl text-sm focus:ring-2 focus:ring-rose-600 outline-none"
+                    />
+                    <div className="text-[11px] mt-1">
+                      <span className={rejectionReasonInput.trim().length < 5 ? 'text-rose-600 font-semibold' : 'text-emerald-600'}>
+                        {rejectionReasonInput.trim().length < 5 ? 'กรุณากรอกอย่างน้อย 5 ตัวอักษร' : '✓ ข้อมูลครบถ้วน'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold text-slate-400 mb-1">เลือกข้อความสำเร็จรูป:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'เวลาทับซ้อนกับกิจกรรมหลักของโรงเรียนตามปฏิทินปฏิบัติงาน',
+                        'ขออนุมัติให้อีกคำขอที่ยื่นก่อนหน้า ขออภัยในความไม่สะดวก',
+                        'สถานที่อยู่ระหว่างการซ่อมบำรุงระบบปรับอากาศและระบบไฟฟ้า'
+                      ].map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setRejectionReasonInput(preset)}
+                          className="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg"
+                        >
+                          + {preset.substring(0, 30)}...
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRejectingBooking(null)}
+                      className="px-4 py-2 text-slate-600 rounded-xl text-sm font-semibold"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      disabled={rejectionReasonInput.trim().length < 5}
+                      onClick={handleConfirmReject}
+                      className={`px-6 py-2 rounded-xl text-sm font-bold shadow-xs transition ${
+                        rejectionReasonInput.trim().length >= 5
+                          ? 'bg-rose-700 text-white cursor-pointer hover:bg-rose-800'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      ยืนยันการไม่อนุมัติคำขอ
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<FacilityBookingApp />);
+  </script>
+</body>
+</html>
