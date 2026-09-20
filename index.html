@@ -78,49 +78,6 @@
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
 
-    // ข้อมูลสำรองเริ่มต้น (Fallback หาก Supabase ยังไม่ได้รันตาราง)
-    const DEFAULT_PROFILES = [
-      {
-        id: '44444444-4444-4444-4444-444444444444',
-        citizenId: '1479900123456',
-        password: '01/01/2525',
-        name: 'นายวิโรจน์ อาคารชัย',
-        role: 'admin',
-        department: 'งานบริหารอาคารสถานที่และสภาพแวดล้อม',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
-        phone: '042-711234 ต่อ 105'
-      },
-      {
-        id: '11111111-1111-1111-1111-111111111111',
-        citizenId: '1479900234567',
-        password: '15/08/2530',
-        name: 'ครูศิริพร ใจดี',
-        role: 'teacher',
-        department: 'กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี',
-        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-        phone: '081-234-5678'
-      },
-      {
-        id: '22222222-2222-2222-2222-222222222222',
-        citizenId: '1479900345678',
-        password: '20/04/2533',
-        name: 'ครูธนากร กิจการ',
-        role: 'teacher',
-        department: 'กลุ่มสาระการเรียนรู้ภาษาไทย',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-        phone: '082-345-6789'
-      },
-      {
-        id: '33333333-3333-3333-3333-333333333333',
-        citizenId: '1479900456789',
-        password: '05/12/2528',
-        name: 'ครูประสิทธิ์ วงศ์วิวัฒน์',
-        role: 'teacher',
-        department: 'กลุ่มสาระการเรียนรู้คณิตศาสตร์',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-        phone: '083-456-7890'
-      }
-    ];
 
     const DEFAULT_VENUES = [
       {
@@ -170,6 +127,76 @@
     }
 
     // =========================================================================
+    // MODAL: STATISTICS COMPONENT
+    // =========================================================================
+    function StatisticsModal({ currentYear, currentMonth, bookings, onClose }) {
+      const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+      const monthBookings = bookings.filter(b => b.date.startsWith(monthPrefix) && b.status !== 'rejected');
+      
+      const venueCounts = {};
+      let total = 0;
+      monthBookings.forEach(b => {
+        venueCounts[b.venueName] = (venueCounts[b.venueName] || 0) + 1;
+        total++;
+      });
+
+      const sortedVenues = Object.entries(venueCounts).sort((a, b) => b[1] - a[1]);
+      const colors = ['#dc2626', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
+      
+      let currentAngle = 0;
+      const gradientParts = sortedVenues.map((v, i) => {
+        const percentage = (v[1] / total) * 100;
+        const start = currentAngle;
+        currentAngle += percentage;
+        return `${colors[i % colors.length]} ${start}% ${currentAngle}%`;
+      });
+      const conicGradient = gradientParts.length > 0 ? `conic-gradient(${gradientParts.join(', ')})` : 'conic-gradient(#e2e8f0 0% 100%)';
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col">
+            <div className="bg-slate-800 p-5 text-white flex items-center justify-between">
+              <h3 className="text-lg font-bold">📊 สถิติการใช้งานสถานที่</h3>
+              <button onClick={onClose} className="text-white/80 hover:text-white text-lg">✕</button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[80vh]">
+              <h4 className="text-center font-bold text-slate-800 mb-6">
+                ประจำเดือน {THAI_MONTHS[currentMonth]} {currentYear + 543}
+              </h4>
+              
+              {total === 0 ? (
+                <div className="text-center py-10 text-slate-400">ยังไม่มีข้อมูลการจองในเดือนนี้</div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <div 
+                    className="w-48 h-48 rounded-full shadow-inner border-4 border-white mb-6"
+                    style={{ background: conicGradient }}
+                  ></div>
+                  
+                  <div className="w-full space-y-3">
+                    {sortedVenues.map((v, i) => (
+                      <div key={v[0]} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-3">
+                          <span className="w-4 h-4 rounded-full" style={{ backgroundColor: colors[i % colors.length] }}></span>
+                          <span className="text-sm font-semibold text-slate-700">{v[0]}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-slate-900">{v[1]} ครั้ง</div>
+                          <div className="text-xs text-slate-500">{((v[1] / total) * 100).toFixed(1)}%</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
     // MAIN REACT APPLICATION
     // =========================================================================
     function FacilityBookingApp() {
@@ -188,7 +215,7 @@
       // System data states
       const [venues, setVenues] = useState(DEFAULT_VENUES);
       const [bookings, setBookings] = useState([]);
-      const [profiles, setProfiles] = useState(DEFAULT_PROFILES);
+      const [profiles, setProfiles] = useState([]);
       const [systemNotifications, setSystemNotifications] = useState([]);
       const [actionMessage, setActionMessage] = useState(null);
 
@@ -203,6 +230,7 @@
       const [isTeacherNotifOpen, setIsTeacherNotifOpen] = useState(false);
       const [isVenueMgmtOpen, setIsVenueMgmtOpen] = useState(false);
       const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false);
+      const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
       const [rejectingBooking, setRejectingBooking] = useState(null);
       const [rejectionReasonInput, setRejectionReasonInput] = useState('');
 
@@ -231,7 +259,7 @@
       const [newUserAvatar, setNewUserAvatar] = useState('');
 
       // =========================================================================
-      // SUPABASE DATA FETCHING & REALTIME
+      // SUPABASE DATA FETCHING & MULTI-TIER REALTIME SYNC
       // =========================================================================
       const loadAllData = useCallback(async () => {
         if (!supabaseClient) return;
@@ -327,19 +355,39 @@
       useEffect(() => {
         loadAllData();
 
+        // 1. Auto-Sync Heartbeat: ดึงข้อมูลอัตโนมัติทุก 3 วินาที เพื่อให้ Admin & Teacher เห็นข้อมูลตรงกันทันที
+        const pollInterval = setInterval(() => {
+          loadAllData();
+        }, 3000);
+
+        // 2. Focus & Tab Active Sync: เมื่อผู้ใช้สลับหน้าจอกลับมา ให้โหลดข้อมูลใหม่ทันที
+        const handleFocus = () => loadAllData();
+        const handleVisibility = () => {
+          if (!document.hidden) loadAllData();
+        };
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        // 3. Supabase Realtime WebSocket Listener
+        let channel = null;
         if (supabaseClient) {
-          const channel = supabaseClient
-            .channel('prod-realtime-sync')
+          channel = supabaseClient
+            .channel('prod-realtime-sync-' + Date.now())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => loadAllData())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'venues' }, () => loadAllData())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => loadAllData())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'system_notifications' }, () => loadAllData())
             .subscribe();
-
-          return () => {
-            supabaseClient.removeChannel(channel);
-          };
         }
+
+        return () => {
+          clearInterval(pollInterval);
+          window.removeEventListener('focus', handleFocus);
+          document.removeEventListener('visibilitychange', handleVisibility);
+          if (supabaseClient && channel) {
+            supabaseClient.removeChannel(channel);
+          }
+        };
       }, [loadAllData]);
 
       // Track if login popup notification has already been triggered
@@ -578,7 +626,15 @@
           return;
         }
 
+        // ตรวจสอบความถูกต้องของช่วงเวลา
+        if (newStartTime >= newEndTime) {
+          alert('⚠️ ช่วงเวลาไม่ถูกต้อง: เวลาสิ้นสุด (' + newEndTime + ' น.) ต้องมากกว่าเวลาเริ่มต้น (' + newStartTime + ' น.)');
+          return;
+        }
+
         const numericVenueId = Number(newVenueId);
+        const formattedStart = newStartTime.length === 5 ? newStartTime + ':00' : newStartTime;
+        const formattedEnd = newEndTime.length === 5 ? newEndTime + ':00' : newEndTime;
 
         if (supabaseClient) {
           const { error } = await supabaseClient
@@ -589,14 +645,14 @@
               purpose: newPurpose.trim(),
               attendees_count: Number(newAttendees) || 1,
               booking_date: newDate,
-              start_time: newStartTime + ':00',
-              end_time: newEndTime + ':00',
+              start_time: formattedStart,
+              end_time: formattedEnd,
               status: 'pending',
               is_read: false
             }]);
 
           if (error) {
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            alert('เกิดข้อผิดพลาดในการบันทึกลงฐานข้อมูล: ' + error.message);
             return;
           }
         }
@@ -604,7 +660,7 @@
         triggerActionMessage('✓ ส่งคำขอจองสถานที่เรียบร้อยแล้ว รอการอนุมัติจากแอดมิน');
         setIsQuickBookingOpen(false);
         setNewPurpose('');
-        loadAllData();
+        await loadAllData();
       };
 
       // 2. แอดมินอนุมัติคำขอ
@@ -840,43 +896,7 @@
                 </button>
               </form>
 
-              {/* Quick Demo Helper Box */}
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">
-                  บัญชีตัวอย่างสำหรับทดสอบ (คลิกเพื่อกรอกอัตโนมัติ):
-                </div>
-                <div className="grid grid-cols-1 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginCitizenId('1479900123456');
-                      setLoginPassword('01/01/2525');
-                    }}
-                    className="p-2.5 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-xl text-xs text-left transition flex items-center justify-between"
-                  >
-                    <div>
-                      <span className="font-bold text-slate-800">แอดมิน: นายวิโรจน์ อาคารชัย</span>
-                      <div className="text-[10px] text-slate-500">ID: 1479900123456 | เกิด: 01/01/2525</div>
-                    </div>
-                    <span className="px-2 py-0.5 bg-red-100 text-red-800 rounded font-bold text-[10px]">แอดมิน</span>
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginCitizenId('1479900234567');
-                      setLoginPassword('15/08/2530');
-                    }}
-                    className="p-2.5 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-xl text-xs text-left transition flex items-center justify-between"
-                  >
-                    <div>
-                      <span className="font-bold text-slate-800">ครู: ครูศิริพร ใจดี</span>
-                      <div className="text-[10px] text-slate-500">ID: 1479900234567 | เกิด: 15/08/2530</div>
-                    </div>
-                    <span className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded font-bold text-[10px]">ครู</span>
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         );
@@ -945,6 +965,51 @@
                     <span>👥 จัดการบุคลากร</span>
                   </button>
                 )}
+
+                {/* ปุ่มเฉพาะ Admin: สถิติการจอง */}
+                {isAdmin && (
+                  <button
+                    onClick={() => setIsStatsModalOpen(true)}
+                    className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                  >
+                    <span>📊 สถิติการจอง</span>
+                  </button>
+                )}
+
+                {/* ปุ่มเฉพาะ Admin: แจ้งเตือนรายการรออนุมัติ */}
+                {isAdmin && (() => {
+                  const pendingCount = bookings.filter(b => b.status === 'pending').length;
+                  return pendingCount > 0 ? (
+                    <button
+                      onClick={() => {
+                        const firstPending = bookings.find(b => b.status === 'pending');
+                        if (firstPending) {
+                          setSelectedDate(firstPending.date);
+                          setIsAdminDayModalOpen(true);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold rounded-xl transition shadow-xs"
+                      title="มีรายการรออนุมัติ คลิกเพื่อตรวจสอบ"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                      <span>⏳ รออนุมัติ ({pendingCount})</span>
+                    </button>
+                  ) : null;
+                })()}
+
+                {/* ปุ่มรีเฟรชข้อมูล (Sync With Database) */}
+                <button
+                  onClick={async () => {
+                    await loadAllData();
+                    triggerActionMessage('✓ อัปเดตข้อมูลล่าสุดจากฐานข้อมูลเรียบร้อยแล้ว');
+                  }}
+                  className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
+                  title="ซิงค์ข้อมูลล่าสุดกับ Supabase"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
 
                 {/* ปุ่มจองสถานที่ด่วน (สำหรับทุกคน) */}
                 <button
@@ -1048,6 +1113,12 @@
                     className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg"
                   >
                     👥 จัดการบุคลากร
+                  </button>
+                  <button
+                    onClick={() => setIsStatsModalOpen(true)}
+                    className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg"
+                  >
+                    📊 สถิติ
                   </button>
                 </div>
               )}
@@ -1961,6 +2032,17 @@
                 </div>
               </div>
             </div>
+          )}
+          {/* =========================================================================
+              MODAL: STATISTICS (สถิติรายเดือน)
+          ========================================================================== */}
+          {isAdmin && isStatsModalOpen && (
+            <StatisticsModal
+              currentYear={currentYear}
+              currentMonth={currentMonth}
+              bookings={bookings}
+              onClose={() => setIsStatsModalOpen(false)}
+            />
           )}
         </div>
       );
